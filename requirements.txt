@@ -1,0 +1,22 @@
+--extra-index-url https://download.pytorch.org/whl/cu118
+
+wheel
+numpy==1.23.0
+torch==2.4.0+cu118 
+torchvision==0.21.0+cu118 
+torchaudio==2.6.0+cu118 
+torch_geometric==2.3.0
+fvcore
+iopath
+pytorch3d @ git+https://github.com/facebookresearch/pytorch3d.git@stable
+
+munch 
+pandas  
+omegaconf 
+matplotlib 
+einops 
+ffmpeg
+smplx 
+aitviewer 
+chumpy 
+huepy
