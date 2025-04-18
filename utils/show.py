@@ -1,6 +1,8 @@
 import os
 import sys
 
+from pathlib import Path
+
 sys.path.append(os.environ['HOOD_PROJECT'])
 
 from dataclasses import dataclass
@@ -112,8 +114,49 @@ def add_seq(path: str, x_shift: float = 0, y_shift: float = 0, cloth_color: tupl
 
     return out
 
+def write_aitviewer_mesh_to_obj(mesh, filename):
+    # Get vertices and faces
+    vertices = mesh.vertices  # shape (N, 3)
+    faces = mesh.faces        # shape (M, 3)
 
-def write_video(sequence_path: str, video_path: str, renderer: HeadlessRenderer, fps: int = 30):
+    if vertices.ndim == 3:
+        vertices = vertices[0]  # e.g. if shape is (1, N, 3)
+
+    print(vertices.shape)  # should be (N, 3)
+    print(vertices[0])     # should be one row: e.g., [-0.18 0.83 0.
+
+    with open(filename, 'w') as f:
+        for v in vertices:
+            f.write(f"v {v[0]} {v[1]} {v[2]}\n")
+        for face in faces:
+            # OBJ format uses 1-based indexing
+            f.write(f"f {face[0]+1} {face[1]+1} {face[2]+1}\n")
+
+def export_animated_mesh_to_obj_sequence(mesh, output_dir, basename="frame"):
+    # Ensure output directory exists
+    Path(output_dir).mkdir(parents=True, exist_ok=True)
+
+    # Get vertices and faces
+    vertices_sequence = mesh.vertices  # shape: (T, V, 3)
+    faces = mesh.faces                 # shape: (F, 3)
+
+    # If tensors, convert to numpy
+    if hasattr(vertices_sequence, 'detach'):
+        vertices_sequence = vertices_sequence.detach().cpu().numpy()
+    if hasattr(faces, 'detach'):
+        faces = faces.detach().cpu().numpy()
+
+    # Loop over time frames
+    for i, verts in enumerate(vertices_sequence):
+        filename = os.path.join(output_dir, f"{basename}_{i:04}.obj")
+        with open(filename, 'w') as f:
+            for v in verts:
+                f.write(f"v {v[0]:.6f} {v[1]:.6f} {v[2]:.6f}\n")
+            for face in faces:
+                f.write(f"f {int(face[0]+1)} {int(face[1]+1)} {int(face[2]+1)}\n")
+        print(f"Wrote frame {i} to {filename}")
+
+def write_video(sequence_path: str, video_path: str, renderer: HeadlessRenderer, out_objs, fps: int = 30):
     """
     Write a video of the given sequence.
     :param sequence_path: path to .pkl file of the sequence
@@ -124,14 +167,23 @@ def write_video(sequence_path: str, video_path: str, renderer: HeadlessRenderer,
 
     cmap = plt.get_cmap('gist_rainbow')
 
+    os.makedirs(out_objs, exist_ok=True)
+
     objects = []
     objects += add_seq(sequence_path, cloth_color=cmap(0.))
+
+    print(f"LENGTH OF OBJECTS {len(objects)}" )
 
     positions, targets = path.lock_to_node(objects[0], [0, 0, 3])
     camera = PinholeCamera(positions, targets, renderer.window_size[0], renderer.window_size[1], viewer=renderer)
     renderer.scene.nodes = renderer.scene.nodes[:5]
     renderer.playback_fps = fps
-    for obj in objects:
+    for i, obj in enumerate(objects):
+        # print(obj)
+        # write_aitviewer_mesh_to_obj(obj, f"{out_objs}/output_{i}.obj")
+        p = f"{out_objs}/{i}/"
+        os.makedirs(p, exist_ok=True)
+        export_animated_mesh_to_obj_sequence(obj, p)
         renderer.scene.add(obj)
 
     renderer.scene.add(camera)
